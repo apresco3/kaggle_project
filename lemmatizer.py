@@ -4,79 +4,77 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import wordnet
 import re
 import string
-from nltk.corpus import stopwords
+from langdetect import detect, DetectorFactory
+from langdetect.lang_detect_exception import LangDetectException
+import stopwordsiso
 
-# Set of stopwords
-STOPWORDS = set(stopwords.words('english'))
+# Ensure consistent language detection
+DetectorFactory.seed = 0
 
 lemmatizer = WordNetLemmatizer()
 
-# Tags the words in the tweets
-
-
 def nltk_tag_to_wordnet_tag(nltk_tag):
+    """Convert NLTK POS tags to WordNet POS tags."""
     if nltk_tag.startswith('J'):
-        return (wordnet.ADJ)
+        return wordnet.ADJ
     elif nltk_tag.startswith('V'):
-        return (wordnet.VERB)
+        return wordnet.VERB
     elif nltk_tag.startswith('N'):
-        return (wordnet.NOUN)
+        return wordnet.NOUN
     elif nltk_tag.startswith('R'):
-        return (wordnet.ADV)
+        return wordnet.ADV
     else:
-        return (None)
+        return None
 
-# Lemmatizes the words in tweets and returns the cleaned and lemmatized tweet
+def detect_language(text):
+    """Detect the language of a given text."""
+    try:
+        return detect(text)
+    except LangDetectException:
+        return "unknown"
 
+def get_stopwords_for_language(language):
+    """Fetch stopwords for a detected language."""
+    return stopwordsiso.stopwords(language) if language in stopwordsiso.langs() else set()
 
 def lemmatize_tweet(tweet):
-    # tokenize the tweet and find the POS tag for each token
-    # tweet_cleaner() will be the function you will write
+    """Lemmatize the tweet."""
+    # Clean the tweet first
+    
     tweet = tweet_cleaner(tweet)
-    nltk_tagged = nltk.pos_tag(nltk.word_tokenize(tweet))
-    # tuple of (token, wordnet_tag)
-    wordnet_tagged = map(lambda x: (
-        x[0], nltk_tag_to_wordnet_tag(x[1])), nltk_tagged)
+    nltk_tagged = nltk.pos_tag(word_tokenize(tweet))
+    wordnet_tagged = map(lambda x: (x[0], nltk_tag_to_wordnet_tag(x[1])), nltk_tagged)
     lemmatized_tweet = []
     for word, tag in wordnet_tagged:
         if tag is None:
-            # if there is no available tag, append the token as is
             lemmatized_tweet.append(word)
         else:
-            # else use the tag to lemmatize the token
             lemmatized_tweet.append(lemmatizer.lemmatize(word, tag))
-    return (" ".join(lemmatized_tweet))
+    return " ".join(lemmatized_tweet)
 
 
 def tweet_cleaner(tweet):
+    """Clean the tweet by removing mentions, links, emojis, RT patterns, and other noise."""
+    # Decode byte strings if needed
+    if isinstance(tweet, bytes):
+        tweet = tweet.decode('utf-8')
 
-    # Remove mentions (words starting with @)
-    tweet = re.sub(r'@\w+', '', tweet)
-    # Remove links (http/https)
-    tweet = re.sub(r'http\S+|www\S+', '', tweet)
-
-    # Remove punctuation
-    tweet = tweet.translate(str.maketrans('', '', string.punctuation))
-
-    # Remove emojis and non-ASCII characters
-    emoji_pattern = re.compile("["
+    # Compile patterns once for efficiency
+    emoji_pattern = re.compile("["  # Emojis and symbols
                                u"\U0001F600-\U0001F64F"  # emoticons
                                u"\U0001F300-\U0001F5FF"  # symbols & pictographs
                                u"\U0001F680-\U0001F6FF"  # transport & map symbols
                                u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
                                "]+", flags=re.UNICODE)
-    tweet = emoji_pattern.sub(r'', tweet)
-    tweet = re.sub(r'[^\x00-\x7F]+', '', tweet)  # Remove non-ASCII chars
+    url_pattern = re.compile(r'http\S+|www\S+')
+    mention_pattern = re.compile(r'@\w+')
+    rt_pattern = re.compile(r"(^RT\s*:|^b' RT\s*:|^b')")  # Matches "RT :", "b' RT :", or "b'"
 
-    # Remove non-alphanumeric tokens and words shorter than 3 characters
-    tweet = " ".join([word for word in tweet.split()
-                     if word.isalnum() and len(word) > 2])
+    # Perform cleaning
+    tweet = rt_pattern.sub('', tweet)       # Remove RT patterns
+    tweet = mention_pattern.sub('', tweet)  # Remove mentions
+    tweet = url_pattern.sub('', tweet)      # Remove URLs
+    tweet = emoji_pattern.sub('', tweet)    # Remove emojis
 
-    # Remove stopwords
-    tweet = " ".join([word for word in tweet.split()
-                     if word.lower() not in STOPWORDS])
-
-    # Remove retweet markers and noise terms -> found from part b)
-    tweet = re.sub(r'\b(rt|brt|amp|htt)\b', '', tweet, flags=re.IGNORECASE)
-
-    return tweet
+    # Strip leading/trailing whitespace
+    return tweet.strip()
