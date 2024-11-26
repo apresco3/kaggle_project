@@ -3,13 +3,6 @@ from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 from nltk.corpus import wordnet
 import re
-import string
-from langdetect import detect, DetectorFactory
-from langdetect.lang_detect_exception import LangDetectException
-import stopwordsiso
-
-# Ensure consistent language detection
-DetectorFactory.seed = 0
 
 lemmatizer = WordNetLemmatizer()
 
@@ -25,17 +18,6 @@ def nltk_tag_to_wordnet_tag(nltk_tag):
         return wordnet.ADV
     else:
         return None
-
-def detect_language(text):
-    """Detect the language of a given text."""
-    try:
-        return detect(text)
-    except LangDetectException:
-        return "unknown"
-
-def get_stopwords_for_language(language):
-    """Fetch stopwords for a detected language."""
-    return stopwordsiso.stopwords(language) if language in stopwordsiso.langs() else set()
 
 def lemmatize_tweet(tweet):
     """Lemmatize the tweet."""
